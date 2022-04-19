@@ -5,21 +5,31 @@ require 'csv'
 require 'nokogiri'
 require 'open-uri'
 
-cat_url = ARGV[0] # https://www.petsonic.com/dermatitis-y-problemas-piel-para-perros/
-file_name = ARGV[1] # products.csv
+cat_url = ARGV[0] # 'https://www.petsonic.com/dermatitis-y-problemas-piel-para-perros/'
+file_name = ARGV[1] # 'products.csv'
 
-unparsed_page = URI.open(cat_url)
-parsed_page = Nokogiri::HTML(unparsed_page)
-all_product_link = [] # Array for keeping links to products
+arr_links = [] # Array for keeping links to products
+parsed_page = Nokogiri::HTML(URI.open(cat_url))
 
-parsed_page.xpath(".//*[@id='product_list']/li/div/div[2]/div[2]/a/@href").each do |product_link|
-  all_product_link << product_link.text
+puts "I started from #{cat_url}"
+
+loop do
+  parsed_page.xpath(".//*[@id='product_list']/li/div/div[2]/div[2]/a/@href").each do |product_link|
+    arr_links << product_link.text
+  end
+  next_page = parsed_page.xpath('.//li[@id="pagination_next_bottom"]/a/@href').text
+  break if next_page.empty?
+
+  puts "I found next page for this category! #{next_page}"
+  parsed_page = Nokogiri::HTML(URI.open("https://www.petsonic.com#{next_page}"))
 end
 
-CSV.open(file_name, "wb") do |csv_line|
+puts "I count #{arr_links.count} product pages!"
+
+CSV.open(file_name, 'wb') do |csv_line|
   csv_line << %w[Name Price Image]
 
-  all_product_link.each do |product_url|
+  arr_links.each do |product_url|
     product_page = Nokogiri::HTML(URI.open(product_url))
 
     product_title = product_page.xpath('.//h1[@class="product_main_name"]').text
@@ -37,5 +47,7 @@ CSV.open(file_name, "wb") do |csv_line|
       product_info = [product[:title], product[:price], product[:img_path]]
       csv_line << product_info
     end
+    puts "I added prod from #{product_url}"
   end
 end
+# Time 129.0575935000088s, tested by Benchmark.measure
